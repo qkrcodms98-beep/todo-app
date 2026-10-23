@@ -14,7 +14,7 @@
 ## 폴더 구조
 - app/ : 페이지와 API 라우트
 - src/components/ : 화면 컴포넌트
-- src/lib/ : 서버 로직, DB
+- src/lib/ : 서버 로직, DB, 화면과 서버가 함께 쓰는 검증 규칙
 - src/types/ : 공유 타입
 - docs/ : 명세 문서
 
