@@ -15,7 +15,7 @@
 - app/ : 페이지와 API 라우트
 - src/components/ : 화면 컴포넌트
 - src/lib/ : 서버 로직, DB, 화면과 서버가 함께 쓰는 검증 규칙
-- src/types/ : 공유 타입
+- src/types/ : 공유 타입과 화면 전용 타입
 - docs/ : 명세 문서
 
 ## 반드시 참고할 문서
