@@ -86,6 +86,7 @@
 
 - POST에서 `title` 필드가 아예 없는 것은 2단계(모양)가 아니라 3단계(제목 규칙)에서 걸린다. 빈 제목과 똑같이 `TITLE_REQUIRED`이다.
 - `title`이 있는데 문자열이 아니면(예: `123`) 2단계에서 `INVALID_REQUEST`로 걸린다.
+- `"title": null`도 필드는 있는데 값이 문자열이 아닌 것이므로 `INVALID_REQUEST`이다. 필드 자체가 없는 `{}`만 `TITLE_REQUIRED`이다.
 
 ### 2-5. 그 밖의 규칙
 - **id 규칙:** 주소의 id는 **1 이상 2,147,483,647 이하의 정수**여야 한다. 2,147,483,647은 DATA_MODEL의 `serial` 타입이 담을 수 있는 가장 큰 수이다.
@@ -176,7 +177,7 @@
 | 제목이 공백만 있음 | 400 | TITLE_REQUIRED | `{ "title": "   " }` |
 | 공백을 잘라낸 제목이 100자 초과 | 400 | TITLE_TOO_LONG | `{ "title": "가가가…(101자)" }` |
 | 본문이 JSON이 아님 | 400 | INVALID_REQUEST | `우유 사기` |
-| `title`이 문자열이 아님 | 400 | INVALID_REQUEST | `{ "title": 123 }` |
+| `title`이 문자열이 아님 | 400 | INVALID_REQUEST | `{ "title": 123 }`, `{ "title": null }` |
 | 서버 안에서 문제가 생김 | 500 | INTERNAL_ERROR | — |
 
 에러 응답 예시 (100자 초과):
@@ -227,7 +228,7 @@
 |------|------|------|------|
 | id가 숫자가 아님 | 400 | INVALID_REQUEST | `/api/todos/abc` |
 | id가 범위를 벗어남 | 400 | INVALID_REQUEST | `/api/todos/0`, `/api/todos/2147483648` |
-| 본문이 JSON이 아님 | 400 | INVALID_REQUEST | `true` |
+| 본문이 JSON이 아님 | 400 | INVALID_REQUEST | `완료` |
 | `completed` 필드가 없음 | 400 | INVALID_REQUEST | `{}` |
 | `completed`가 boolean이 아님 | 400 | INVALID_REQUEST | `{ "completed": "yes" }` |
 | 해당 id의 할 일이 없음 (이미 삭제됨 등) | 404 | NOT_FOUND | `/api/todos/999` |
@@ -279,7 +280,7 @@ v0.4부터 3-3과 같은 주소에 `title`도 보낼 수 있다.
 | id가 범위를 벗어남 | 400 | INVALID_REQUEST | `/api/todos/0`, `/api/todos/2147483648` |
 | 본문이 JSON이 아님 | 400 | INVALID_REQUEST | `두유 사기` |
 | `title`과 `completed`가 둘 다 없음 | 400 | INVALID_REQUEST | `{}` |
-| `title`이 문자열이 아님 | 400 | INVALID_REQUEST | `{ "title": 123 }` |
+| `title`이 문자열이 아님 | 400 | INVALID_REQUEST | `{ "title": 123 }`, `{ "title": null }` |
 | `completed`가 boolean이 아님 | 400 | INVALID_REQUEST | `{ "completed": "yes" }` |
 | 해당 id의 할 일이 없음 | 404 | NOT_FOUND | `/api/todos/999` |
 | 서버 안에서 문제가 생김 | 500 | INTERNAL_ERROR | — |
@@ -354,7 +355,7 @@ export type UpdateTodoRequest = {
 - **에러 code:** `TITLE_REQUIRED`, `TITLE_TOO_LONG`, `INVALID_REQUEST`, `NOT_FOUND`, `INTERNAL_ERROR` 다섯 개만 쓴다.
 - **화면 문구 고르기:** 제목 규칙 code(`TITLE_REQUIRED`, `TITLE_TOO_LONG`)일 때만 제목 문구를 보여준다. 그 밖의 모든 에러(400 `INVALID_REQUEST`, 404, 500, 네트워크 오류)에는 "요청에 실패했습니다. 다시 시도해 주세요."를 보여준다 (PRD F-06, TRD 7장).
 - **title 필드가 없을 때 (POST):** 빈 제목과 똑같이 제목 규칙 위반으로 보고 `TITLE_REQUIRED`("제목을 입력해 주세요.")를 돌려준다.
-- **title이 문자열이 아닐 때:** `INVALID_REQUEST`로 돌려준다.
+- **title이 문자열이 아닐 때:** `INVALID_REQUEST`로 돌려준다. `"title": null`도 여기에 들어간다 (필드는 있고 값이 문자열이 아님).
 - **id 규칙:** 1 이상 2,147,483,647 이하의 정수만 받는다. 범위를 벗어나면 숫자가 아닌 id와 똑같이 `INVALID_REQUEST`(400)이다.
 - **완료 전환 방식:** "반대로 바꿔라"가 아니라 바꾼 뒤의 값(`completed: true/false`)을 보낸다. 같은 요청을 두 번 보내도 결과가 같다.
 - **수정 주소:** 완료 전환과 제목 수정은 같은 PATCH 주소를 쓴다. 제목 수정은 F-09가 도입되는 v0.4부터 받는다.

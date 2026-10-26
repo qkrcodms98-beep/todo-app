@@ -17,7 +17,7 @@
 
 ### 1-2. 버전
 - 각 소제목의 `(v0.x)`는 그 테스트를 **처음 만드는 버전**이다.
-- 한 번 만든 테스트는 뒤 버전에서도 계속 통과해야 한다. 예외는 8장 1번, 3번에 적었다.
+- 한 번 만든 테스트는 뒤 버전에서도 계속 통과해야 한다. **기대 결과는 바꾸지 않는다.** 버전이 올라가 테스트의 준비 부분만 더해야 하는 경우는 2장 "버전이 올라갈 때"에 적었다.
 
 ### 1-3. 줄여 쓰는 말
 
@@ -48,6 +48,20 @@
 - TodoApp 외의 컴포넌트는 Props 함수를 흉내 함수로 넘기고, 불린 값을 확인한다.
 - TodoApp 테스트(v0.2~)는 `fetch`를 흉내 내서 서버 응답을 정한다. "응답 기다리는 중"은 흉내 낸 응답을 바로 돌려주지 않고 붙잡아 두어 만든다.
 - "네트워크 오류"는 흉내 낸 `fetch`가 응답 대신 에러를 던지게 해서 만든다.
+
+**v0.3 테스트용 DB**
+- v0.3부터 API 테스트(3-1~3-6)는 실제 Postgres에 대고 돌린다. 개발용 데이터가 지워지지 않도록 **테스트 전용 DB**를 따로 쓴다. Neon에서 테스트용 브랜치를 하나 만들어 쓴다.
+- 테스트용 DB 주소는 `.env.local`에 `TEST_DATABASE_URL`이라는 이름으로 넣는다. 커밋하지 않는다 (CLAUDE.md).
+- 각 테스트는 시작할 때 `todos` 테이블을 비운다. 그래서 테스트끼리 서로 영향을 주지 않는다.
+- 500 `INTERNAL_ERROR` 테스트는 v0.3에서도 저장 함수가 에러를 던지게 흉내 낸다. DB를 일부러 끊지 않는다.
+- `TEST_DATABASE_URL`이 없으면 API 테스트는 실패한다. 건너뛰지(skip) 않는다 (CLAUDE.md).
+
+**버전이 올라갈 때**
+- v0.1의 TodoApp 테스트(CMP-APP-01~22)는 서버 없이 바로 그린다. v0.2부터는 처음에 목록을 불러오고 추가할 때 POST를 보내므로, 이 테스트들의 **준비 부분**에 다음을 더한다.
+  - GET은 `{ "todos": [] }`를 돌려준다.
+  - POST는 받은 제목(앞뒤 공백 제거)으로 만든 할 일을 201로 돌려준다. PATCH, DELETE는 성공 응답을 돌려준다.
+  - 「로딩 문구」가 사라질 때까지 기다린 뒤 원래 동작을 시작한다.
+- **기대 결과(표의 오른쪽 칸)는 바꾸지 않는다.** 준비 부분만 더한 뒤에도 같은 결과가 나와야 한다. 결과가 다르면 구현을 고친다 (CLAUDE.md).
 
 ## 3. API 테스트
 
@@ -92,6 +106,7 @@
 | API-POST-17 | POST /api/todos | `{ "title": 123 }` | 400 INVALID_REQUEST (제목 규칙보다 모양 검사가 먼저) |
 | API-POST-18 | POST 다음 GET | API-POST-10~17 중 하나로 실패한 뒤 GET | 목록이 실패 전과 똑같다 (저장되지 않음) |
 | API-POST-19 | POST /api/todos | 저장 함수가 에러를 던진다 | 500 INTERNAL_ERROR |
+| API-POST-20 | POST /api/todos | `{ "title": null }` | 400 INVALID_REQUEST (필드는 있고 값이 문자열이 아님. `{}`와 다르다) |
 
 ### 3-3. PATCH /api/todos/{id} — 완료 상태 바꾸기 (v0.2)
 
@@ -103,27 +118,28 @@
 | API-PATCH-02 | PATCH /api/todos/{id} | 완료한 할 일에 `{ "completed": false }` | 200, `todo.completed`는 `false` |
 | API-PATCH-03 | PATCH /api/todos/{id} | 같은 할 일에 `{ "completed": true }`를 두 번 보낸다 | 두 번 다 200, 결과는 `completed: true` (미완료로 되돌아가지 않음) |
 | API-PATCH-04 | PATCH 다음 GET | C, B, A 중 B를 완료로 바꾼 뒤 GET | 순서가 그대로 C, B, A이고 B의 `createdAt`이 바뀌지 않았다 |
-| API-PATCH-05 | PATCH /api/todos/{id} (v0.2~v0.3 전용) | `{ "completed": true, "title": "새 제목" }` | 200, `completed`는 `true`, `title`은 원래 제목 그대로 (`title`은 읽지 않음). 8장 3번 참고 |
-| API-PATCH-06 | PATCH /api/todos/2147483647 | 가장 큰 id, 그 할 일은 없다 | 404 NOT_FOUND (id 모양은 올바르므로 400이 아니다) |
+| API-PATCH-05 | PATCH /api/todos/2147483647 | 가장 큰 id, 그 할 일은 없다 | 404 NOT_FOUND (id 모양은 올바르므로 400이 아니다) |
+
+- v0.2~v0.3에서 PATCH가 `title`을 무시하는지는 테스트하지 않는다. v0.4부터 결과가 바뀌어 테스트의 기대 결과를 고쳐야 하기 때문이다. "v0.4 기능을 미리 만들지 않는다"는 CLAUDE.md 규칙으로 지킨다.
 
 **에러**
 
 | ID | 대상 | 상황 | 기대 결과 |
 |------|------|------|------|
-| API-PATCH-07 | PATCH /api/todos/abc | id가 숫자가 아님 | 400 INVALID_REQUEST |
-| API-PATCH-08 | PATCH /api/todos/0 | id가 1보다 작음 | 400 INVALID_REQUEST |
-| API-PATCH-09 | PATCH /api/todos/-1 | id가 음수 | 400 INVALID_REQUEST |
-| API-PATCH-10 | PATCH /api/todos/1.5 | id가 정수가 아님 | 400 INVALID_REQUEST |
-| API-PATCH-11 | PATCH /api/todos/2147483648 | id가 가장 큰 값보다 1 큼 | 400 INVALID_REQUEST |
-| API-PATCH-12 | PATCH /api/todos/{id} | 본문이 JSON이 아닌 글자 `완료` | 400 INVALID_REQUEST |
-| API-PATCH-13 | PATCH /api/todos/{id} | `{}` (`completed` 없음) | 400 INVALID_REQUEST |
-| API-PATCH-14 | PATCH /api/todos/{id} | `{ "completed": "yes" }` | 400 INVALID_REQUEST |
-| API-PATCH-15 | PATCH /api/todos/{id} | `{ "completed": "true" }` (따옴표가 있는 문자열) | 400 INVALID_REQUEST (boolean이 아님) |
-| API-PATCH-16 | PATCH /api/todos/999 | 없는 id에 `{ "completed": true }` | 404 NOT_FOUND, message는 「실패 문구」 |
-| API-PATCH-17 | PATCH /api/todos/{id} | 삭제한 할 일의 id에 `{ "completed": true }` | 404 NOT_FOUND |
-| API-PATCH-18 | PATCH /api/todos/0 | 잘못된 id + 잘못된 본문 `{}` | 400 INVALID_REQUEST (처음 걸린 것 하나만) |
-| API-PATCH-19 | PATCH 다음 GET | API-PATCH-12~15 중 하나로 실패한 뒤 GET | 그 할 일의 `completed`가 그대로이다 |
-| API-PATCH-20 | PATCH /api/todos/{id} | 저장 함수가 에러를 던진다 | 500 INTERNAL_ERROR |
+| API-PATCH-06 | PATCH /api/todos/abc | id가 숫자가 아님 | 400 INVALID_REQUEST |
+| API-PATCH-07 | PATCH /api/todos/0 | id가 1보다 작음 | 400 INVALID_REQUEST |
+| API-PATCH-08 | PATCH /api/todos/-1 | id가 음수 | 400 INVALID_REQUEST |
+| API-PATCH-09 | PATCH /api/todos/1.5 | id가 정수가 아님 | 400 INVALID_REQUEST |
+| API-PATCH-10 | PATCH /api/todos/2147483648 | id가 가장 큰 값보다 1 큼 | 400 INVALID_REQUEST |
+| API-PATCH-11 | PATCH /api/todos/{id} | 본문이 JSON이 아닌 글자 `완료` | 400 INVALID_REQUEST |
+| API-PATCH-12 | PATCH /api/todos/{id} | `{}` (`completed` 없음) | 400 INVALID_REQUEST |
+| API-PATCH-13 | PATCH /api/todos/{id} | `{ "completed": "yes" }` | 400 INVALID_REQUEST |
+| API-PATCH-14 | PATCH /api/todos/{id} | `{ "completed": "true" }` (따옴표가 있는 문자열) | 400 INVALID_REQUEST (boolean이 아님) |
+| API-PATCH-15 | PATCH /api/todos/999 | 없는 id에 `{ "completed": true }` | 404 NOT_FOUND, message는 「실패 문구」 |
+| API-PATCH-16 | PATCH /api/todos/{id} | 삭제한 할 일의 id에 `{ "completed": true }` | 404 NOT_FOUND |
+| API-PATCH-17 | PATCH /api/todos/0 | 잘못된 id + 잘못된 본문 `{}` | 400 INVALID_REQUEST (처음 걸린 것 하나만) |
+| API-PATCH-18 | PATCH 다음 GET | API-PATCH-11~14 중 하나로 실패한 뒤 GET | 그 할 일의 `completed`가 그대로이다 |
+| API-PATCH-19 | PATCH /api/todos/{id} | 저장 함수가 에러를 던진다 | 500 INTERNAL_ERROR |
 
 ### 3-4. PATCH /api/todos/{id} — 제목 수정 (v0.4)
 
@@ -158,6 +174,7 @@
 | API-EDIT-20 | PATCH /api/todos/0 | 잘못된 id + `{ "title": "   " }` | 400 INVALID_REQUEST (id 검사가 제목 규칙보다 먼저) |
 | API-EDIT-21 | PATCH 다음 GET | 미완료 할 일에 `{ "title": "   ", "completed": true }`로 실패한 뒤 GET | 제목도 완료 상태도 그대로이다 (일부만 저장되지 않음) |
 | API-EDIT-22 | PATCH /api/todos/{id} | 저장 함수가 에러를 던진다 | 500 INTERNAL_ERROR |
+| API-EDIT-23 | PATCH /api/todos/{id} | `{ "title": null }` | 400 INVALID_REQUEST |
 
 ### 3-5. DELETE /api/todos/{id} — 할 일 삭제 (v0.2)
 
@@ -184,7 +201,7 @@
 
 ### 3-6. DB 저장 (v0.3)
 
-3-1~3-5의 테스트는 v0.3에서도 그대로 통과해야 한다 (요청·응답 모양은 같고 저장 위치만 바뀐다). 아래는 DB에 실제로 저장되는지 확인한다. 테스트용 DB를 어떻게 준비할지는 8장 2번에 적었다.
+3-1~3-5의 테스트는 v0.3에서도 그대로 통과해야 한다 (요청·응답 모양은 같고 저장 위치만 바뀐다). 아래는 DB에 실제로 저장되는지 확인한다. 테스트용 DB는 2장 "v0.3 테스트용 DB"대로 준비한다.
 
 | ID | 대상 | 상황 | 기대 결과 |
 |------|------|------|------|
@@ -451,20 +468,20 @@
 
 | 기능 | API 테스트 | 컴포넌트 테스트 |
 |------|------|------|
-| F-01 할 일 추가 | API-POST-01~19 | CMP-FORM-01~09, CMP-APP-02~13, 29~37 |
+| F-01 할 일 추가 | API-POST-01~20 | CMP-FORM-01~09, CMP-APP-02~13, 29~37 |
 | F-02 목록 보기 | API-GET-01~05, API-DB-06 | CMP-LIST-02, CMP-APP-03, 24 |
-| F-03 완료 전환 | API-PATCH-01~20 | CMP-ITEM-02~05, 07, CMP-APP-14~15, 38~44 |
+| F-03 완료 전환 | API-PATCH-01~19 | CMP-ITEM-02~05, 07, CMP-APP-14~15, 38~44 |
 | F-04 삭제 | API-DEL-01~11 | CMP-ITEM-06, CMP-APP-16~17, 45~50 |
 | F-05 빈 목록 문구 | API-GET-01 | CMP-LIST-01, CMP-APP-01, 17, 25, 57 |
 | F-06 요청 실패 문구 | 각 표의 에러 줄 | CMP-ERR-01~03, CMP-APP-18~22, 26~28, 35~37, 42~44, 48~52, 81~86 |
 | F-07 데이터 유지 | API-DB-01~06 | — |
 | F-08 필터 | — | CMP-FILTER-01~07, CMP-APP-53~65 |
-| F-09 수정 | API-EDIT-01~22 | CMP-ITEM-09~23, CMP-LIST-06~07, CMP-APP-66~86 |
+| F-09 수정 | API-EDIT-01~23 | CMP-ITEM-09~23, CMP-LIST-06~07, CMP-APP-66~86 |
 
 ## 6. 이 문서에 넣지 않은 것
 - **배포(v1.0) 확인:** 공개 URL로 접속되는지는 자동 테스트가 아니라 배포 후 직접 열어서 확인한다.
 - **범위 밖 기능:** 로그인, 공유, 알림, 마감일, 카테고리는 만들지 않으므로 테스트도 없다 (PRD 5장).
-- **명세에 결과가 없는 상황:** 8장 4번처럼 문서에 결과가 정해지지 않은 요청은 넣지 않았다.
+- **v0.2~v0.3에서 PATCH가 `title`을 무시하는지:** v0.4에서 결과가 바뀌므로 넣지 않았다 (3-3 아래 메모).
 
 ## 7. 결정 사항
 이 문서를 쓰면서 정한 것이다.
@@ -475,14 +492,14 @@
 - **컴포넌트 테스트 방법:** TodoApp은 `fetch`를 흉내 내고, 나머지 컴포넌트는 Props 함수를 흉내 함수로 넘긴다.
 - **경계값:** 제목 길이는 1자, 100자, 101자, 앞뒤 공백 포함, 이모지(`.length` 2)로 확인한다. id는 0, 1.5, 2,147,483,647, 2,147,483,648로 확인한다.
 
-## 8. 확인이 필요한 것
-문서에 정해지지 않았거나, 테스트를 고치지 않는다는 규칙(CLAUDE.md)과 부딪칠 수 있는 것이다. 정해지면 이 장을 고친다.
+## 8. 확인해서 정한 것
+초안에서 문서에 정해지지 않았던 것을 추천안대로 정했다.
 
-1. **v0.1 TodoApp 테스트를 v0.2에서 어떻게 할지:** v0.1의 CMP-APP-01~22는 서버 없이 바로 그린다. v0.2부터는 처음에 「로딩 문구」가 보이고 추가에 POST가 필요하므로, 테스트의 **준비 부분**(GET이 빈 목록을 돌려주고 POST가 성공하도록 `fetch` 흉내)을 더해야 한다. 기대 결과는 그대로 둔다. 이렇게 준비 부분만 더하는 것을 허용할지 정해야 한다.
-2. **v0.3 API 테스트용 DB:** 3-6(API-DB-01~06)은 실제 Postgres가 필요하다. 테스트용 DB를 따로 둘지(예: Neon의 테스트 전용 브랜치), 어떤 접속 정보를 쓸지 문서에 없다. 3-1~3-5를 v0.3에서 DB에 대고 돌릴지, 저장 함수를 흉내 낼지도 함께 정해야 한다.
-3. **API-PATCH-05 (v0.2~v0.3 전용):** v0.2~v0.3에서는 `title`을 무시하지만, v0.4부터는 `title`을 받으므로 결과가 바뀐다. v0.4에서 이 테스트를 API-EDIT-02로 바꾸는 것을 허용할지 정해야 한다.
-4. **POST `{ "title": null }`의 결과:** "`title` 필드가 없음"(TITLE_REQUIRED)으로 볼지, "`title`이 문자열이 아님"(INVALID_REQUEST)으로 볼지 API_SPEC에 없다. 정해지기 전까지 테스트에 넣지 않았다.
-5. **API_SPEC 3-3의 "본문이 JSON이 아님" 예시 `true`:** `true`는 JSON으로는 올바른 값(객체가 아닌 값)이다. 결과는 어느 쪽이든 INVALID_REQUEST이므로, 이 문서에서는 JSON이 아닌 글자 `완료`를 예시로 썼다. API_SPEC 예시를 고칠지 정해야 한다.
+1. **v0.1 TodoApp 테스트를 v0.2에서:** 준비 부분(`fetch` 흉내)만 더하고 기대 결과는 바꾸지 않는다 (2장 "버전이 올라갈 때").
+2. **v0.3 테스트용 DB:** Neon 테스트용 브랜치를 쓰고, 주소는 `.env.local`의 `TEST_DATABASE_URL`에 둔다. 3-1~3-6 모두 이 DB에 대고 돌리고, 500만 흉내 낸다 (2장 "v0.3 테스트용 DB").
+3. **v0.2~v0.3에서 PATCH의 `title` 무시:** 테스트하지 않는다. 버전이 올라갈 때 기대 결과를 고쳐야 하는 테스트를 만들지 않기 위해서다. 초안의 API-PATCH-05를 빼고 뒤 번호를 하나씩 당겼다.
+4. **`{ "title": null }`:** 필드는 있고 값이 문자열이 아니므로 `INVALID_REQUEST`이다. API_SPEC 2-4, 3-2, 3-4에 반영했고 API-POST-20, API-EDIT-23을 더했다.
+5. **"본문이 JSON이 아님" 예시:** API_SPEC 3-3의 예시를 `true`에서 `완료`로 고쳤다 (`true`는 올바른 JSON이다).
 
 ## 9. 용어 설명
 - **테스트 케이스:** "이런 상황에서 이렇게 되어야 한다"는 확인 하나이다.
